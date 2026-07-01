@@ -16,7 +16,7 @@ export default function App() {
   useEffect(() => {
     const loadFromFile = async () => {
       try {
-        const response = await fetch('/Sample_Sales_Data_MVP_Extended.xlsx')
+        const response = await fetch('Sample_Sales_Data_MVP_Extended.xlsx')
         if (response.ok) {
           const buffer = await response.arrayBuffer()
           loadExcelFile(buffer)

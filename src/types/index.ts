@@ -19,6 +19,7 @@ export interface Filters {
   dateTo: string
   region: string
   category: string
+  salesperson: string
   search: string
 }
 

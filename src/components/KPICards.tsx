@@ -4,9 +4,9 @@ import { formatCompactCurrency } from '../utils/calculations'
 const icons: Record<string, string> = {
   'Общий объём продаж': '💰',
   'Количество транзакций': '📋',
+  'Продано единиц': '📦',
   'Средний чек': '🧾',
-  'Доля рынка': '📊',
-  'Темп роста': '📈',
+  'Доля продаж': '📊',
 }
 
 export default function KPICards() {

@@ -38,6 +38,7 @@ export function applyFilters(records: SalesRecord[], filters: Filters): SalesRec
     if (filters.dateTo && date > parseDate(filters.dateTo)) return false
     if (filters.region && filters.region !== 'all' && r.Region !== filters.region) return false
     if (filters.category && filters.category !== 'all' && r.Category !== filters.category) return false
+    if (filters.salesperson && filters.salesperson !== 'all' && r.Salesperson !== filters.salesperson) return false
     if (filters.search) {
       const q = filters.search.toLowerCase()
       if (
@@ -55,29 +56,18 @@ export function applyFilters(records: SalesRecord[], filters: Filters): SalesRec
 export function calculateKPIs(records: SalesRecord[], allRecords: SalesRecord[]): KPI[] {
   const totalSales = records.reduce((sum, r) => sum + r.Sales, 0)
   const totalTransactions = records.length
+  const totalQuantity = records.reduce((sum, r) => sum + r.Quantity, 0)
   const avgCheck = totalTransactions > 0 ? totalSales / totalTransactions : 0
 
   const totalAllSales = allRecords.reduce((sum, r) => sum + r.Sales, 0)
   const marketShare = totalAllSales > 0 ? (totalSales / totalAllSales) * 100 : 0
 
-  const dates = records.map((r) => parseDate(r.Date))
-  const minDate = new Date(Math.min(...dates.map((d) => d.getTime())))
-  const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())))
-  const midPoint = new Date((minDate.getTime() + maxDate.getTime()) / 2)
-
-  const firstHalf = records.filter((r) => parseDate(r.Date) <= midPoint)
-  const secondHalf = records.filter((r) => parseDate(r.Date) > midPoint)
-
-  const firstSales = firstHalf.reduce((sum, r) => sum + r.Sales, 0)
-  const secondSales = secondHalf.reduce((sum, r) => sum + r.Sales, 0)
-  const growth = firstSales > 0 ? ((secondSales - firstSales) / firstSales) * 100 : 0
-
   return [
-    { title: 'Общий объём продаж', value: formatCurrency(totalSales), change: growth, prefix: '₽' },
+    { title: 'Общий объём продаж', value: formatCurrency(totalSales), change: 0, prefix: '₽' },
     { title: 'Количество транзакций', value: totalTransactions.toLocaleString('ru-RU'), change: 0 },
+    { title: 'Продано единиц', value: totalQuantity.toLocaleString('ru-RU'), change: 0, suffix: ' шт' },
     { title: 'Средний чек', value: formatCurrency(avgCheck), change: 0, prefix: '₽' },
-    { title: 'Доля рынка', value: marketShare.toFixed(1), change: 0, suffix: '%' },
-    { title: 'Темп роста', value: `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}`, change: growth, suffix: '%' },
+    { title: 'Доля продаж', value: marketShare.toFixed(1), change: 0, suffix: '%' },
   ]
 }
 
@@ -152,11 +142,21 @@ export function getInsights(records: SalesRecord[], allRecords: SalesRecord[]): 
   const categorySales = getCategorySales(records)
   const monthlySales = getMonthlySales(records)
 
+  const totalSales = records.reduce((sum, r) => sum + r.Sales, 0)
+  const totalProfit = records.reduce((sum, r) => sum + r.Profit, 0)
+  const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0
+
+  insights.push({
+    type: 'info',
+    text: `Общая выручка: ${formatCurrency(totalSales)}. Прибыль: ${formatCurrency(totalProfit)} (рентабельность ${profitMargin.toFixed(1)}%).`,
+  })
+
   if (regionSales.length > 0) {
     const top = regionSales[0]
+    const last = regionSales.length > 1 ? regionSales[regionSales.length - 1] : null
     insights.push({
       type: 'positive',
-      text: `Лидирующий регион: ${top.region} (${formatCurrency(top.sales)}).`,
+      text: `Регион-лидер: ${top.region} (${formatCurrency(top.sales)}).${last ? ` Отстающий: ${last.region} (${formatCurrency(last.sales)}).` : ''}`,
     })
   }
 
@@ -164,7 +164,7 @@ export function getInsights(records: SalesRecord[], allRecords: SalesRecord[]): 
     const top = categorySales[0]
     insights.push({
       type: 'positive',
-      text: `Самая продаваемая категория: ${top.category} (${top.percentage.toFixed(1)}% продаж).`,
+      text: `Категория-лидер: ${top.category} — ${top.percentage.toFixed(1)}% продаж (${formatCurrency(top.sales)}).`,
     })
   }
 
@@ -176,21 +176,26 @@ export function getInsights(records: SalesRecord[], allRecords: SalesRecord[]): 
     if (growth > 0) {
       insights.push({
         type: 'positive',
-        text: `Рост продаж в ${last.month} на ${growth.toFixed(1)}% относительно ${prev.month}.`,
+        text: `Рост продаж в ${last.month}: ${growth.toFixed(1)}% по сравнению с ${prev.month}.`,
       })
     } else if (growth < 0) {
       insights.push({
         type: 'negative',
-        text: `Снижение продаж в ${last.month} на ${Math.abs(growth).toFixed(1)}% относительно ${prev.month}.`,
+        text: `Спад продаж в ${last.month}: ${Math.abs(growth).toFixed(1)}% по сравнению с ${prev.month}.`,
       })
     }
   }
 
-  if (regionSales.length > 1) {
-    const last = regionSales[regionSales.length - 1]
+  const salespersonSales = new Map<string, number>()
+  for (const r of records) {
+    salespersonSales.set(r.Salesperson, (salespersonSales.get(r.Salesperson) || 0) + r.Sales)
+  }
+  const sortedSalespersons = Array.from(salespersonSales.entries()).sort((a, b) => b[1] - a[1])
+  if (sortedSalespersons.length > 0) {
+    const [topName, topAmount] = sortedSalespersons[0]
     insights.push({
       type: 'info',
-      text: `Регион с наименьшими продажами: ${last.region} (${formatCurrency(last.sales)}).`,
+      text: `Лучший менеджер: ${topName} (${formatCurrency(topAmount)}).`,
     })
   }
 
@@ -204,7 +209,7 @@ export function getInsights(records: SalesRecord[], allRecords: SalesRecord[]): 
       type: 'positive',
       text: `Средний чек ${formatCurrency(avgCheck)} выше общего среднего (${formatCurrency(overallAvgCheck)}).`,
     })
-  } else if (overallAvgCheck > 0) {
+  } else if (avgCheck < overallAvgCheck && overallAvgCheck > 0) {
     insights.push({
       type: 'negative',
       text: `Средний чек ${formatCurrency(avgCheck)} ниже общего среднего (${formatCurrency(overallAvgCheck)}).`,
@@ -212,6 +217,10 @@ export function getInsights(records: SalesRecord[], allRecords: SalesRecord[]): 
   }
 
   return insights
+}
+
+export function getUniqueSalespersons(records: SalesRecord[]): string[] {
+  return [...new Set(records.map((r) => r.Salesperson))].sort()
 }
 
 export function getUniqueRegions(records: SalesRecord[]): string[] {

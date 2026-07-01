@@ -9,6 +9,7 @@ import {
   getInsights,
   getUniqueRegions,
   getUniqueCategories,
+  getUniqueSalespersons,
   getDateRange,
 } from '../utils/calculations'
 import { parseExcelFile } from '../utils/dataParser'
@@ -25,6 +26,7 @@ interface AppState {
   insights: Insight[]
   regions: string[]
   categories: string[]
+  salespersons: string[]
   dateRange: { min: string; max: string }
   loading: boolean
   error: string | null
@@ -36,10 +38,11 @@ interface AppState {
 }
 
 const DEFAULT_FILTERS: Filters = {
-  dateFrom: '',
-  dateTo: '',
+  dateFrom: '01.01.2025',
+  dateTo: '31.12.2025',
   region: 'all',
   category: 'all',
+  salesperson: 'all',
   search: '',
 }
 
@@ -54,6 +57,7 @@ export const useStore = create<AppState>((set, get) => ({
   insights: [],
   regions: [],
   categories: [],
+  salespersons: [],
   dateRange: { min: '', max: '' },
   loading: false,
   error: null,
@@ -90,11 +94,13 @@ export const useStore = create<AppState>((set, get) => ({
       dataSource.setData(records)
       const regions = getUniqueRegions(records)
       const categories = getUniqueCategories(records)
+      const salespersons = getUniqueSalespersons(records)
       const dateRange = getDateRange(records)
       set({
         allRecords: records,
         regions,
         categories,
+        salespersons,
         dateRange,
         loading: false,
         error: null,
